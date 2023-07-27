@@ -1,2 +1,3 @@
 # TimeseriesLambda
- Excel LAMBDA functions for timeseries analysis
+Excel LAMBDA functions for timeseries analysis
+

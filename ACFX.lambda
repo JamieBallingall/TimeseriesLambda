@@ -1,0 +1,12 @@
+// Some comments
+=LAMBDA( design, response, [depth], LET
+  ( depth_, IF(ISOMITTED(depth), 15, depth)
+  , nRow, ROWS(response)
+  , REORDER, LAMBDA(beta, LET(nCols, COLUMNS(beta) - 1, INDEX(beta, 1, SEQUENCE(nCols, 1, nCols, -1))))
+  , LINSOLVE, LAMBDA(design_, response_, REORDER(LINEST(response_, design_, 0, 0)))   // A comment
+  , beta, LINSOLVE(design, response)
+  , resid, response - MMULT(design, beta)
+  , AUX, LAMBDA( lag, CORREL(DROP(resid, lag), DROP(resid, -lag)))
+  , MAP(SEQUENCE(depth + 1, 1, 0), AUX)
+  )
+)

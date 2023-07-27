@@ -1,0 +1,74 @@
+// Compute the Cholesky decomposition of a given symmetric positive-definite matrix.
+//
+// The Cholesky decomposition factorizes a symmetric positive-definite matrix A into the product of
+// a lower triangular matrix L and its transpose L^T, such that A = L * L^T or A = MMULT(L, TRANSPOSE(L)).
+//
+// Parameters:
+// -----------
+//   array : a 2d range of numbers
+//           The input matrix for which the Cholesky decomposition will be computed.
+//           It should be a symmetric positive-definite matrix
+// 
+// Returns:
+// --------
+//   L : a 2d range of numbers
+//       The lower triangular matrix resulting from the Cholesky decomposition.
+// 
+// Raises:
+// -------
+//   #NUM! : If 
+//   #REF! : If `array` is not square
+//
+// Algorithm:
+// ----------
+//   Uses the Cholesky algorithm, a form of recursive Gaussian elimination.
+//   See https://en.wikipedia.org/wiki/Cholesky_decomposition#The_Cholesky_algorithm
+//
+// Note:
+// -----
+//   This file is not, in itself, a valid LAMBDA function. To deploy into a spreadsheet, run 
+//     python make_lambda.py < CHOLESKY.lambda > working.lambda
+//   then copy the single line expression in working.lambda into your spreadsheet, giving it the
+//   name CHOLESKY 
+//
+// Comment:
+// --------
+//   You may wish to copy the following into the comment box along with the formula:
+//     The Cholesky decomposition of the supplied matrix. The matrix must be square and 
+//     positive definite.
+//
+
+=LAMBDA(array, LET
+  ( AUX, LAMBDA(SELF, working, nRow, iRow, IF
+    ( iRow = nRow
+    , MAKEARRAY(nRow, nRow, LAMBDA(jRow, jCol, IF // If last col, make identity with root in corner
+        ( AND(jRow = nRow, jCol = nRow)
+        , SQRT(INDEX(working, nRow, nRow))
+        , IF(jRow = jCol, 1, 0)
+        )))
+    , LET  // Not last col
+      ( a, INDEX(working, iRow, iRow)
+      , roota, SQRT(a)
+      , b, DROP(INDEX(working, 0, iRow), iRow)
+      , scaledb, b / roota
+      , lower, MAKEARRAY(nRow, nRow  // The L_i matrix. A lower triangular matrix for this step
+        , LAMBDA(jRow, jCol, IF
+            ( jCol = iRow 
+            , IF(jRow >= iRow, INDEX(VSTACK(roota, scaledb), jRow - iRow + 1), 0)
+            , IF(jRow = jCol, 1, 0)
+            )
+          )
+        )
+      , lowerinv, MINVERSE(lower) // Could be calculated directed by that may not be faster
+      , working_, MMULT(MMULT(lowerinv, working), TRANSPOSE(lowerinv)) // Apply L_i inverse
+      , MMULT(lower, SELF(SELF, working_, nRow, iRow + 1)) // Accumulate L_i and recurse
+      )
+    )
+    )
+  , IF // If the matrix is not square, return #REF!. Otherwise, call AUX with starting state
+    ( ROWS(array) = COLUMNS(array)
+    , AUX(AUX, array, ROWS(array), 1)
+    , INDIRECT("")
+    )
+  )
+)
