@@ -1,23 +1,23 @@
 // Compute the Cholesky decomposition of a given symmetric positive-definite matrix.
 //
-// The Cholesky decomposition factorizes a symmetric positive-definite matrix A into the product of
-// a lower triangular matrix L and its transpose L^T, such that A = L * L^T or A = MMULT(L, TRANSPOSE(L)).
+// The Cholesky decomposition factors a symmetric positive-definite matrix A into the product of a lower triangular
+// matrix L and its transpose L^T, such that A = L * L^T or A = MMULT(L, TRANSPOSE(L)).
 //
 // Parameters:
 // -----------
 //   array : a 2d range of numbers
-//           The input matrix for which the Cholesky decomposition will be computed.
-//           It should be a symmetric positive-definite matrix
+//     The input matrix for which the Cholesky decomposition will be computed. It should be a symmetric 
+//     positive-definite matrix.
 // 
 // Returns:
 // --------
 //   L : a 2d range of numbers
-//       The lower triangular matrix resulting from the Cholesky decomposition.
+//     The lower triangular matrix resulting from the Cholesky decomposition such that `array = L * L^T`
 // 
 // Raises:
 // -------
-//   #NUM! : If 
-//   #REF! : If `array` is not square
+//   #REF! : If matrix is not square or not symmetric.
+//   #NUM! : If the matrix not positive semidefinite. 
 //
 // Algorithm:
 // ----------
@@ -28,8 +28,7 @@
 // -----
 //   This file is not, in itself, a valid LAMBDA function. To deploy into a spreadsheet, run 
 //     python make_lambda.py < CHOLESKY.lambda > working.lambda
-//   then copy the single line expression in working.lambda into your spreadsheet, giving it the
-//   name CHOLESKY 
+//   then copy the single line expression in working.lambda into your spreadsheet.
 //
 // Comment:
 // --------
@@ -59,14 +58,14 @@
             )
           )
         )
-      , lowerinv, MINVERSE(lower) // Could be calculated directed by that may not be faster
+      , lowerinv, MINVERSE(lower) // Could be calculated directly by that may not be faster
       , working_, MMULT(MMULT(lowerinv, working), TRANSPOSE(lowerinv)) // Apply L_i inverse
       , MMULT(lower, SELF(SELF, working_, nRow, iRow + 1)) // Accumulate L_i and recurse
       )
     )
     )
-  , IF // If the matrix is not square, return #REF!. Otherwise, call AUX with starting state
-    ( ROWS(array) = COLUMNS(array)
+  , IF // If the matrix is not square or not symmetric, return #REF!. Otherwise, call AUX with starting state
+    ( AND(ROWS(array) = COLUMNS(array), IFNA(AND(array = TRANSPOSE(array)), FALSE))
     , AUX(AUX, array, ROWS(array), 1)
     , INDIRECT("")
     )
