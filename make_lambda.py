@@ -3,7 +3,7 @@
 # It was generated in nearly the form below by ChatGPT
 #
 # Usage is of the form
-#   python make_lambda.py < foo.lambda > working.lambda
+#   python make_lambda.py < WIBBLE.lambda > WIBBLE.min.lambda
 
 import sys
 
