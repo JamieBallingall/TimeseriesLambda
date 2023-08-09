@@ -1,12 +1,62 @@
-// Some comments
-=LAMBDA( design, response, [depth], LET
-  ( depth_, IF(ISOMITTED(depth), 15, depth)
-  , nRow, ROWS(response)
-  , REORDER, LAMBDA(beta, LET(nCols, COLUMNS(beta) - 1, INDEX(beta, 1, SEQUENCE(nCols, 1, nCols, -1))))
-  , LINSOLVE, LAMBDA(design_, response_, REORDER(LINEST(response_, design_, 0, 0)))   // A comment
-  , beta, LINSOLVE(design, response)
-  , resid, response - MMULT(design, beta)
-  , AUX, LAMBDA( lag, CORREL(DROP(resid, lag), DROP(resid, -lag)))
-  , MAP(SEQUENCE(depth + 1, 1, 0), AUX)
+// ACFX(design, timeseries, [max_lag])
+//
+// Compute the Autocorrelation Function (ACF) of a the residuals of a given time series.
+// 
+// The ACF measures the correlation between a time series and its lagged versions at different time lags. It is used
+// to detect seasonality, trends, and other patterns in the time series data. The X in ACFX stands for exogenous and
+// indicates that the ACF of the residuals is computed after the effect of the design matrix has been removed. 
+//
+// Parameters:
+// -----------
+//   design : 2d range (n_samples by n_features)
+//     The input feature matrix, where n_samples is the number of samples and n_features is the number of features.
+//     Optional. Call ACFX(, timeseries, max_lag) to call without a design matrix.
+// 
+//   timeseries : 1d column range (n_samples)
+//     The input time series for which the ACF will be computed.
+// 
+//   max_lag : positive integer
+//     The maximum number of lags for which the PACF will be computed. If ommitted, the ACF will be computed up to half 
+//     the length of the time series or 370, whichever is smaller.
+//
+// Returns:
+// --------
+//   acf_values : column vector (max_lag)
+//     The computed autocorrelation values for each lag from 1 to `max_lag`. The ACF at lag 0 is always 1 and therefore 
+//     not included.
+//
+// Possible errors:
+// ----------------
+//   #REF!   : Returned if the design matrix and response vector are incompatible sizes.
+//   #VALUE! : Returned if max_lag is not a positive integer.
+// 
+// Note:
+// -----
+//   This file is not, in itself, a valid LAMBDA function. To deploy into a spreadsheet, run 
+//     python make_lambda.py < ACFX.lambda > ACFX.min.lambda
+//   then copy the single line expression in working.lambda into your spreadsheet, giving it the name ACFX.
+//
+// Comment:
+// --------
+//   You may wish to copy the following into the comment box along with the formula:
+//     Compute the Autocorrelation Function (ACF) of a the residuals of a given time series.
+
+=LAMBDA( design, response, [max_lag], LET
+  ( nRow     , ROWS(response)
+  , max_lag_ , IF(ISOMITTED(max_lag), MIN(370, FLOOR.MATH(nRow / 2)), FLOOR.MATH(max_lag)) 
+  , REORDER  , LAMBDA(beta, LET(nCols, COLUMNS(beta) - 1, INDEX(beta, 1, SEQUENCE(nCols, 1, nCols, -1)))) // Used in LINSOLVE
+  , LINSOLVE , LAMBDA(design_, response_, REORDER(LINEST(response_, design_, 0, 0)))                      // A cleaned up LINEST. Equivalent to MATLAB's backslash operator
+  , beta     , LINSOLVE(design, response)
+  , resid    , IF(ISOMITTED(design), response, response - MMULT(design, beta))                            // Residuals
+  , ACF      , LAMBDA(lag, CORREL(DROP(resid, lag), DROP(resid, -lag)))
+  , IF
+    ( AND(NOT(ISOMITTED(design)), nRow <> ROWS(design))
+    , INDIRECT("")                                                                                        // Generates a #REF! error
+    , IF
+      ( max_lag_ <= 0
+      , 1 + ""                                                                                            // Generates a #VALUE! error
+      , MAP(SEQUENCE(max_lag_, 1, 1), ACF)
+      )
+    )
   )
 )
