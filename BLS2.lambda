@@ -1,0 +1,122 @@
+// BLS(design, response, prior_mu, prior_precision, prior_alpha, prior_beta)
+//
+//   Compute Bayesian Linear Least Squares (BLS) regression with conjugate priors.
+//
+//   Bayesian Linear Least Squares is a statistical method that performs linear regression while incorporating prior
+//   information about the parameters into the model. It is useful when dealing with small data sets or situations
+//   where there is limited knowledge about the true underlying parameters.
+//
+//   Parameters:
+//   -----------
+//     design : 2d range (n_samples by n_features)
+//       The input feature matrix, where n_samples is the number of samples and n_features is the number of features
+//
+//     response : column range (n_samples)
+//       The target values corresponding to each sample in design
+//
+//     prior_mu : column range (n_features) | row range (n_features)
+//       The mu (mean) parameter vector of the prior of the beta parameter
+//
+//     prior_precision : 2d range (n_features by n_features) | column range (n_features) | row range (n_features)
+//       
+//       The precision matrix is the matrix inverse of the covariance matrix. Since the covariance matrix must be 
+//       symmetric and positive definite, the precision matrix must be symmetric and positive definite. However,
+//       these properties are not checked and BLS will produce a result even with an invalid precision matrix.
+//
+//     prior_alpha : number 
+//       x
+//
+//     prior_beta : number
+//       x
+//
+// 
+//  https://en.wikipedia.org/wiki/Bayesian_linear_regression
+//
+//   Returns:
+//   --------
+//     result : 
+// 
+//   Raises:
+//   -------
+//     #REF! : If the sizes of the inputs do not conform
+//     #VALUE! : If any input contains an invalid value. Note that blank cells are invalid and not converted to zero
+//     
+//   Notes:
+//   ------
+//   1. The function assumes that the prior distributions for the intercept and coefficients are Gaussian
+//      (conjugate priors). The prior distribution for each coefficient follows a normal distribution with
+//      a mean of 0 and a precision defined by the corresponding element of the `alpha` array or the single
+//      value of `alpha`.
+// 
+//   2. The prior distribution for the noise term follows an inverse Gamma distribution with shape and scale
+//      parameters derived from the `beta` value.
+// 
+//   3. The function uses Bayesian updating to compute the posterior distribution of the coefficients based
+//      on the given data and the prior information.
+// 
+
+=LAMBDA( design, response, prior_mu, prior_precision, prior_a, prior_b, LET
+  ( REORDER, LAMBDA(beta, LET(nCols, COLUMNS(beta) - 1, INDEX(beta, 1, SEQUENCE(nCols, 1, nCols, -1))))
+  , LINSOLVE, LAMBDA(A, b, REORDER(LINEST(b, A, 0, 0)))
+  , PAD_2, LAMBDA(a, b, nRow, MAKEARRAY(nRow, 1, LAMBDA(iRow, iCol, IF(iRow = 1, a, IF(iRow = 2, b, "")))))
+  , FORCE2COL, LAMBDA(vector, IF(COLUMNS(vector) > 1, TRANSPOSE(vector), vector))
+  , COL2MAT, LAMBDA(vector, LET
+      ( nRow, ROWS(vector)
+      , MAKEARRAY(nRow, nRow, LAMBDA(iRow, iCol, IF(iRow = iCol, INDEX(vector, iRow, 1), 0)))
+      )
+    )
+  , rowOrientation, COLUMNS(prior_mu) > 1
+  , prior_mu_, FORCE2COL(prior_mu)
+  , prior_precision_, IF(OR
+    ( ROWS(prior_precision) = 1
+    , COLUMNS(prior_precision) = 1
+    )
+    , COL2MAT(FORCE2COL(prior_precision))
+    , prior_precision
+    )
+    , design_rows, ROWS(design)
+    , design_cols, COLUMNS(design)
+    , response_rows, ROWS(response)
+    , response_cols, COLUMNS(response)
+    , mu_rows, ROWS(prior_mu_)
+    , mu_cols, COLUMNS(prior_mu_)
+    , precision_rows, ROWS(prior_precision_)
+    , precision_cols, COLUMNS(prior_precision_)
+    , a_rows, ROWS(prior_a)
+    , a_cols, COLUMNS(prior_a)
+    , b_rows, ROWS(prior_b)
+    , b_cols, COLUMNS(prior_b)
+    , nBeta, design_cols
+    , nObsv, design_rows
+    , IF(NOT(AND
+      ( response_rows = nObsv
+      , response_cols = 1
+      , mu_rows = nBeta
+      , mu_cols = 1
+      , precision_cols = nBeta
+      , precision_rows = nBeta
+      , a_rows = 1
+      , a_cols = 1
+      , b_rows = 1
+      , b_cols = 1
+      ))
+      , INDIRECT("")
+      , LET
+        ( beta_hat, LINSOLVE(design, response)
+        , XTX, MMULT(TRANSPOSE(design), design)
+        , posterior_precision, XTX + prior_precision_
+        , XTXbetaetc, MMULT(XTX, beta_hat) + MMULT(prior_precision_, prior_mu_)
+        , posterior_mu, LINSOLVE(posterior_precision, XTXbetaetc)
+        , posterior_a, prior_a + nObsv / 2
+        , yTy, MMULT(TRANSPOSE(response), response)
+        , muTLambdamu_0, MMULT(MMULT(TRANSPOSE(prior_mu_), prior_precision_), prior_mu_)
+        , muTLambdamu_n, MMULT(MMULT(TRANSPOSE(posterior_mu), posterior_precision), posterior_mu)
+        , posterior_b, prior_b + 0.5 * (yTy + muTLambdamu_0 - muTLambdamu_n)
+        , posterior_ab, PAD_2(posterior_a, posterior_b, nBeta)
+        , result, HSTACK(posterior_ab, beta_hat, posterior_mu, posterior_precision)
+        , IF(rowOrientation, TRANSPOSE(result), result
+        )
+      )
+    )
+  )
+)

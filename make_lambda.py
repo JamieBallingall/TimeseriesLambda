@@ -18,7 +18,7 @@ def clean_function(input_text):
     line = line.replace(" ", "") # Remove spaces
     processed_lines.append(line)
 
-  return "".join(processed_lines)
+  return "".join(processed_lines) + "\n"
 
 if __name__ == "__main__":
   try:
