@@ -25,7 +25,7 @@
 //     The computed autocorrelation values for each lag from 1 to `max_lag`. The ACF at lag 0 is always 1 and therefore 
 //     not included.
 //
-// Possible errors:
+// Throws:
 // ----------------
 //   #REF!   : Returned if the design matrix and response vector are incompatible sizes.
 //   #VALUE! : Returned if max_lag is not a positive integer.
