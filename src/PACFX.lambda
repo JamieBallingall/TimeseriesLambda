@@ -1,67 +1,79 @@
-// PACFX(design, timeseries, [max_lag])
+// PACFX(timeseries, [design], [max_lag])
 //
 // Compute the Partial Autocorrelation Function (ACF) of a the residuals of a given time series.
-// 
-// 
-// The Partial Autocorrelation Function (PACF) measures the correlation between a time series and 
+//
+// The Partial Autocorrelation Function (PACF) measures the correlation between a time series and
 // its lagged versions, taking into account the intermediate correlations with shorter lags. It is
-// used to detect seasonality, trends, and other patterns in the time series data. The X in ACFX 
-// stands for exogenous and indicates that the ACF of the residuals is computed after the effect 
-// of the design matrix has been removed. 
+// used to detect seasonality, trends, and other patterns in the time series data. The X in ACFX
+// stands for exogenous and indicates that the ACF of the residuals is computed after the effect
+// of the design matrix has been removed.
 //
 // Parameters:
 // -----------
-//   design : 2d range (n_samples by n_features)
-//     The input feature matrix, where n_samples is the number of samples and n_features is the number of features.
-//     Optional. Call PACFX(, timeseries, max_lag) to call without a design matrix.
-// 
 //   timeseries : 1d column range (n_samples)
 //     The input time series for which the PACF will be computed.
-// 
+//
+//   design : 2d range (n_samples by n_features)
+//     The input feature matrix, where n_samples is the number of samples and n_features is the
+//     number of features. Optional. Call PACFX(, timeseries, max_lag) to call without a design
+//     matrix.
+//
 //   max_lag : positive integer
-//     The maximum number of lags for which the PACF will be computed. If ommitted, the ACF will be computed up to half 
-//     the length of the time series or 370, whichever is smaller.
+//     The maximum number of lags for which the PACF will be computed.
+//     If ommitted, assumed to be 12.
 //
 // Returns:
 // --------
 //   pacf_values : column vector (max_lag)
-//     The computed autocorrelation values for each lag from 1 to `max_lag`. The ACF at lag 0 is always 1 and therefore 
-//     not included.
+//     The computed autocorrelation values for each lag from 1 to `max_lag`. The ACF at lag 0 is
+//     always 1 and therefore  not included.
 //
 // Throws:
 // -------
 //   #REF!   : Returned if the design matrix and response vector are incompatible sizes.
 //   #VALUE! : Returned if max_lag is not a positive integer.
-// 
+//
 // Note:
 // -----
-//   This file is not, in itself, a valid LAMBDA function. To deploy into a spreadsheet, run 
+//   This file is not, in itself, a valid LAMBDA function. To deploy into a spreadsheet, run
 //     python make_lambda.py < PACFX.lambda > PACFX.min.lambda
-//   then copy the single line expression in working.lambda into your spreadsheet, giving it the name ACFX.
+//   then copy the single line expression in working.lambda into your spreadsheet, giving it the
+//   name ACFX.
 //
 // Comment:
 // --------
 //   You may wish to copy the following into the comment box along with the formula:
-//     Compute the Partial Autocorrelation Function (ACF) of a the residuals of a given time series.
+//     Compute the Partial Autocorrelation Function (PACF) of a the residuals of a given time
+//     series
 
-=LAMBDA( design, response, [max_lag], LET
-  ( max_lag_, IF(ISOMITTED(max_lag), 15, max_lag)
-  , nRow, ROWS(response)
-  , AUX, LAMBDA( lag, LET
-      ( REORDER, LAMBDA(beta, LET(nCols, COLUMNS(beta) - 1, INDEX(beta, 1, SEQUENCE(nCols, 1, nCols, -1))))
-      , LINSOLVE, LAMBDA(design_, response_, REORDER(LINEST(response_, design_, 0, 0)))
-      , staggered, MAKEARRAY(nRow - lag, lag, LAMBDA(iRow, iCol, INDEX(response, iRow + iCol - 1)))
-      , augDesign, IF
-        ( lag = 0
-        , design
-        , HSTACK(DROP(design, lag), staggered)
+=LAMBDA( response, [design], [max_lag], LET
+  ( nRow,        ROWS(response)
+  , max_lag_,    IF(ISOMITTED(max_lag), 12, FLOOR.MATH(max_lag))
+  , REORDER,     LAMBDA(beta, LET(m, COLUMNS(beta) - 1, INDEX(beta, 1, SEQUENCE(m, 1, m, -1))))
+  , LINSOLVE,    LAMBDA(design_, response_, REORDER(LINEST(response_, design_, 0, 0)))
+  , ONCE, LAMBDA( lag, LET
+      ( staggered, MAKEARRAY(nRow - lag, lag, LAMBDA(iRow, iCol, INDEX(response, iRow + iCol - 1)))
+      , augDesign, CHOOSE
+        ( 2 * NOT(ISOMITTED(design)) + NOT(lag = 0) + 1
+        , NA()                                  // Design is ommitted and lag is zero
+        , staggered                             // Design is ommitted and lag is nonzero
+        , DROP(design, lag)                     // Design is present and lag is zero
+        , HSTACK(DROP(design, lag), staggered)  // Design is present and lag is nonzero
         )
-      , shiftedResponse, DROP(response, lag)
-      , beta, LINSOLVE(augDesign, shiftedResponse)
-      , resid, shiftedResponse - MMULT(augDesign, beta)
+      , shiftResp, DROP(response, lag)
+      , beta,      LINSOLVE(augDesign, shiftResp)
+      , resid,     IF(ISNA(augDesign), shiftResp, shiftResp - MMULT(augDesign, beta))
       , CORREL(DROP(resid, 1), DROP(resid, -1))
       )
     )
-  , MAP(SEQUENCE(max_lag_ + 1, 1, 0), AUX)
+  , IF
+    ( IFERROR(nRow <> ROWS(design), FALSE)
+    , INDIRECT("")                                                                             // Generates a #REF! error
+    , IF
+      ( max_lag_ <= 0
+      , 1 + ""                                                                                 // Generates a #VALUE! error
+      , MAP(SEQUENCE(max_lag_, 1, 0), ONCE)
+      )
+    )
   )
 )

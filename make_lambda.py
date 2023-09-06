@@ -1,6 +1,5 @@
 # This script will strip out any comments, spaces or newline characters from a file
 # It acts a compiler for Excel LAMBDA functions, allowing us to write more structured functions
-# It was generated in nearly the form below by ChatGPT
 #
 # Usage is of the form
 #   python make_lambda.py < WIBBLE.lambda > WIBBLE.min.lambda
