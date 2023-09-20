@@ -26,16 +26,26 @@
 //       even with an invalid precision matrix.
 //
 //     prior_alpha : number
-//       <TODO>
+//       The shape parameter of the prior distribution of sigma. Must be greater than or equal to
+//       zero.
 //
 //     prior_beta : number
-//       <TODO>
-//
-//  https://en.wikipedia.org/wiki/Bayesian_linear_regression#Posterior_distribution
+//       The scale parameter of the prior distribution of sigma. Must be greater than or equal to
+//       zero.
 //
 //   Returns:
 //   --------
-//     result :
+//     result : The orientation of the result depends on the orientation of the prior_mu input. If
+//              the prior_mu input is a row then the result is an array of cell of the following
+//              shape
+//       A1  B1          <- A1 = Posterior alpha, A2 = Posterior beta
+//       A2  B2 ... Z2   <- Maximum likelihood estimator, for reference
+//       A3  B3 ... Z3   <- Posterior mu
+//       A4  B4 ... Z4   <- Posterior precision, first row
+//        .   . .    .
+//        .   .  .   .
+//        .   .   .  .
+//       An  Bn ... Zn   <- Posterior precision, last row
 //
 //   Raises:
 //   -------
@@ -50,13 +60,18 @@
 //        distribution with a mean of 0 and a precision defined by the corresponding element of the
 //        `alpha` array or the single value of `alpha`.
 //
-//     2. The prior distribution for the noise term follows an inverse Gamma distribution with
-//        shape and scale parameters derived from the `beta` value.
+//     2. The prior distribution for the noise term follows an inverse-Gamma distribution with shape
+//        and scale parameters specified by the `prior_alpha` and `prior_beta` values. Strictly
+//        speaking, the Inverse-Gamma is only defined if beta is strictly greater than zero but in
+//        this context both alpha = 0 and beta = 0 are allowed.
 //
 //     3. The function uses Bayesian updating to compute the posterior distribution of the
 //        coefficients based on the given data and the prior information.
+//
+//     4. See https://en.wikipedia.org/wiki/Bayesian_linear_regression#Posterior_distribution for the
+//        formulas that this function is implementing.
 
-=LAMBDA( design, response, prior_mu, prior_precision, prior_a, prior_b, LET
+=LAMBDA( design, response, prior_mu, prior_precision, prior_alpha, prior_beta, LET
   ( REORDER, LAMBDA(beta, LET(nCols, COLUMNS(beta) - 1, INDEX(beta, 1, SEQUENCE(nCols, 1, nCols, -1))))
   , LINSOLVE, LAMBDA(A, b, REORDER(LINEST(b, A, 0, 0)))
   , PAD_2, LAMBDA(a, b, nRow, MAKEARRAY(nRow, 1, LAMBDA(iRow, iCol, IF(iRow = 1, a, IF(iRow = 2, b, "")))))
@@ -83,10 +98,10 @@
     , mu_cols, COLUMNS(prior_mu_)
     , precision_rows, ROWS(prior_precision_)
     , precision_cols, COLUMNS(prior_precision_)
-    , a_rows, ROWS(prior_a)
-    , a_cols, COLUMNS(prior_a)
-    , b_rows, ROWS(prior_b)
-    , b_cols, COLUMNS(prior_b)
+    , a_rows, ROWS(prior_alpha)
+    , a_cols, COLUMNS(prior_alpha)
+    , b_rows, ROWS(prior_beta)
+    , b_cols, COLUMNS(prior_beta)
     , nBeta, design_cols
     , nObsv, design_rows
     , IF(NOT(AND
@@ -108,16 +123,20 @@
         , posterior_precision, XTX + prior_precision_
         , XTXbetaetc, MMULT(XTX, beta_hat) + MMULT(prior_precision_, prior_mu_)
         , posterior_mu, LINSOLVE(posterior_precision, XTXbetaetc)
-        , posterior_a, prior_a + nObsv / 2
+        , posterior_alpha, prior_alpha + nObsv / 2
         , yTy, MMULT(TRANSPOSE(response), response)
         , muTLambdamu_0, MMULT(MMULT(TRANSPOSE(prior_mu_), prior_precision_), prior_mu_)
         , muTLambdamu_n, MMULT(MMULT(TRANSPOSE(posterior_mu), posterior_precision), posterior_mu)
-        , posterior_b, prior_b + 0.5 * (yTy + muTLambdamu_0 - muTLambdamu_n)
-        , posterior_ab, PAD_2(posterior_a, posterior_b, nBeta)
-        , result, HSTACK(posterior_ab, beta_hat, posterior_mu, posterior_precision)
+        , posterior_beta, prior_beta + 0.5 * (yTy + muTLambdamu_0 - muTLambdamu_n)
+        , posterior_alphabeta, PAD_2(posterior_alpha, posterior_beta, nBeta)
+        , result, HSTACK(posterior_alphabeta, beta_hat, posterior_mu, posterior_precision)
         , IF(rowOrientation, TRANSPOSE(result), result
         )
       )
     )
   )
 )
+
+
+// TODO:
+//   Conditions on prior_alpha and prior_beta
