@@ -1,0 +1,1 @@
+=LAMDBA(A,b,LET(REORDER,LAMBDA(beta,LET(nCols,COLUMNS(beta)-1,INDEX(beta,1,SEQUENCE(nCols,1,nCols,-1)))),LAMBDA(A,b,REORDER(LINEST(b,A,0,0)))))
